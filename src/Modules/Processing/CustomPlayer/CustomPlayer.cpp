@@ -41,24 +41,9 @@ void CustomPlayer::exec() {
     return;
   }
 
-  // checar se pode haver colisao
-  // caso eu esteja tentando recuperar a bola isso atrapalharia
-  // caso esteja atacando talvez estaja ok
-  // for (auto i = frame->enemies().begin(); i != frame->enemies().end(); i++)
-  //   if (((*i).position() - robot->position()).angle() <= 0.17 &&
-  //       robot->distTo((*i).position()) <= 400)
-  //     bool collision = true;
-
   // TODO: here...
   // emit sendCommand(..
-  /*
-  atacantes
-  3 1
-  meio/defesa
-  2 0 4
-  goleiro
-  5
-  */
+
   std::vector<int> striker;
   striker.push_back(1);
   striker.push_back(3);
@@ -97,7 +82,7 @@ void CustomPlayer::exec() {
   }
 
   else if (!isGoalkeeper) {
-    state = 4; // vai para a bola (depedendo da posição via devagar ou rapido)
+    state = 4; // vai para a bola (depedendo da posição vai devagar ou rapido)
   } else if (!goalkeeperInGoal)
     state = 7; // vai para o gol ser goleiro
 
@@ -151,15 +136,9 @@ void CustomPlayer::exec() {
 
     case 2: {
       // vai em direcao ao gol
-      double anglex = 0.0;
-
-      while (robot->angleTo(*frame->enemies().closestTo(robot->position())) + anglex <= 0.3 &&
-             robot->distTo(*frame->enemies().closestTo(robot->position())) <= 750)
-        anglex += 0.1;
 
       SSLMotion::GoToPoint goToGoal(field->allyGoalInsideCenter(),
-                                    (field->allyGoalInsideCenter() - robot->position()).angle() +
-                                        anglex,
+                                    (field->allyGoalInsideCenter() - robot->position()).angle(),
                                     true);
       goToGoal.set_maxVelocity(0.5);
       SSLRobotCommand cGoToGoal(goToGoal);
@@ -186,7 +165,6 @@ void CustomPlayer::exec() {
       if ((isDefender && robot->position().isOnTheRightOf(frame->ball().position())) ||
           (isStriker && robot->position().isOnTheLeftOf(frame->ball().position())))
         goToBall.set_maxVelocity(0.5);
-      goToBall.set_maxVelocity(0.1);
       SSLRobotCommand cGoToBall(goToBall);
       emit sendCommand(sslNavigation.run(robot.value(), cGoToBall));
       break;
