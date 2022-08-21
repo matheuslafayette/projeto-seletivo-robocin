@@ -41,8 +41,9 @@ void CustomPlayer::update() {
 Point CustomPlayer::nextPointToGo(Point destiny) {
 
   vector<Point> pathnodes;
+  int id = robot->id();
 
-  if (destiny.distTo(target) >= 200) {
+  if (destiny.distTo(robotpath[id].target) >= 200) {
     RRTSTAR* rrt = new RRTSTAR;
     rrt->setEndPos(destiny);
     rrt->setInitPos(robot->position());
@@ -70,20 +71,20 @@ Point CustomPlayer::nextPointToGo(Point destiny) {
 
     rrt->setMaxIterations(2500);
     rrt->setStepSize(120);
-    pathNodes = rrt->runRRTSTAR();
+    robotpath[id].pathNodes = rrt->runRRTSTAR();
 
-    currentNode = (int) pathNodes.size() - 1;
-    nextPoint = pathNodes.at(currentNode);
-    target = pathNodes.at(0);
+    robotpath[id].currentNode = (int) robotpath[id].pathNodes.size() - 1;
+    robotpath[id].nextPoint = robotpath[id].pathNodes.at(robotpath[id].currentNode);
+    robotpath[id].target = robotpath[id].pathNodes.at(0);
     // target = destiny;
     delete rrt;
-  } else if (currentNode > 0 && robot->distTo(nextPoint) <= 100) {
+  } else if (robotpath[id].currentNode > 0 && robot->distTo(robotpath[id].nextPoint) <= 100) {
 
-    currentNode--;
-    nextPoint = pathNodes.at(currentNode);
+    robotpath[id].currentNode--;
+    robotpath[id].nextPoint = robotpath[id].pathNodes.at(robotpath[id].currentNode);
   }
 
-  return nextPoint;
+  return robotpath[id].nextPoint;
 }
 
 void CustomPlayer::exec() {
@@ -158,6 +159,7 @@ void CustomPlayer::exec() {
     }
 
     case 1: {
+      // std::cout << "in" << std::endl;
       // pass to closest ally
       Robot closestRobot = *frame->allies().findById(1);
       double dist = 100000;
@@ -176,7 +178,7 @@ void CustomPlayer::exec() {
       if (abs(robot->angleTo(closestRobot.position())) <= tenDegrees) {
 
         cPass.set_front(true);
-        const double kicksp = 1 + robot->distTo(closestRobot.position()) / 1500;
+        double kicksp = 1 + robot->distTo(closestRobot.position()) / 1500;
         cPass.set_kickSpeed(kicksp);
         // std::cout << robot->distTo(closestRobot.position()) << std::endl;
       }
@@ -186,36 +188,28 @@ void CustomPlayer::exec() {
 
     case 2: {
       // vai em direcao ao gol
-      // Point destiny = field->allyPenaltyAreaCenter();
       Point destiny = field->allyGoalOutsideCenter();
-      nextPoint = nextPointToGo(destiny);
+      Point nextP = nextPointToGo(destiny);
+      // Point nextP = destiny;
 
-      // Point nextPoint = destiny;
-
-      SSLMotion::GoToPoint goToGoal(nextPoint, (nextPoint - robot->position()).angle(), true);
-      // goToGoal.set_maxVelocity(0.5);
+      SSLMotion::GoToPoint goToGoal(nextP, (nextP - robot->position()).angle(), true);
       SSLRobotCommand cGoToGoal(goToGoal);
       cGoToGoal.set_dribbler(true);
-      // cGoToGoal.set_dribblerVelocity(5);
       emit sendCommand(sslNavigation.run(*robot, cGoToGoal));
-
-      // SSLMotion::GoToPoint goToGoal(field->allyGoalInsideCenter(),
-      //                               (field->allyGoalInsideCenter() - robot->position()).angle(),
-      //                               true);
-      // goToGoal.set_maxVelocity(0.5);
-      // SSLRobotCommand cGoToGoal(goToGoal);
-      // cGoToGoal.set_dribbler(true);
-      // cGoToGoal.set_dribblerVelocity(5);
-      // emit sendCommand(sslNavigation.run(*robot, cGoToGoal));
 
       break;
     }
 
     case 3: {
       // mais perto da bola vai em direcao a bola
-      SSLMotion::GoToPoint goToBall(frame->ball().position(),
-                                    (frame->ball().position() - robot->position()).angle(),
-                                    true);
+      Point nextP;
+      if (robot->distTo(frame->ball().position()) <= 500)
+        nextP = frame->ball().position();
+      else
+        nextP = nextPointToGo(frame->ball().position());
+      // nextP = frame->ball().position();
+
+      SSLMotion::GoToPoint goToBall(nextP, (nextP - robot->position()).angle(), true);
       SSLRobotCommand cGoToBall(goToBall);
       emit sendCommand(sslNavigation.run(*robot, cGoToBall));
       break;
@@ -224,7 +218,9 @@ void CustomPlayer::exec() {
     case 4: {
       // se tao longe vao em direcao a bola
       Point pontoEixoX(frame->ball().position().x(), robot->position().y());
-      SSLMotion::GoToPoint goToBall(pontoEixoX, (pontoEixoX - robot->position()).angle(), true);
+      Point nextP = nextPointToGo(pontoEixoX);
+
+      SSLMotion::GoToPoint goToBall(nextP, (nextP - robot->position()).angle(), true);
       if ((isDefender && robot->position().isOnTheRightOf(frame->ball().position())) ||
           (isStriker && robot->position().isOnTheLeftOf(frame->ball().position())))
         goToBall.set_maxVelocity(0.5);
