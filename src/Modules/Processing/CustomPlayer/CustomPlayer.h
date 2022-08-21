@@ -3,10 +3,12 @@
 
 #include "Modules/Modules.h"
 #include "Modules/Processing/ProcessingUtils/ProcessingUtils.h"
+#include <vector>
 
 class CustomPlayer : public Processing {
  public:
   CustomPlayer(int index, QThreadPool* threadPool);
+  Point nextPointToGo(Point destiny);
 
  protected:
   void buildParameters(Parameters::Handler& parameters) override;
@@ -30,6 +32,12 @@ class CustomPlayer : public Processing {
   std::optional<Field> field;
   std::optional<Frame> frame;
   std::optional<Robot> robot;
+  Point target = Point(3000, -3000);
+  Point nextPoint;
+  std::vector<Point> pathNodes;
+
+  std::vector<Point> destiny = std::vector<Point>(6, Point(3000, -3000));
+  int currentNode;
 
   SSLNavigation sslNavigation;
   VSSNavigation vssNavigation;

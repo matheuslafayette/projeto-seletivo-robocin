@@ -2,6 +2,8 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include "./../PathPlanning/rrtstar.h"
+//#include "./../PathPlanning/rrt.h"
 
 CustomPlayer::CustomPlayer(int index, QThreadPool* threadPool) : Processing(index, threadPool) {
 }
@@ -34,6 +36,54 @@ void CustomPlayer::update() {
     }
     frame.emplace(*f);
   }
+}
+
+Point CustomPlayer::nextPointToGo(Point destiny) {
+
+  vector<Point> pathnodes;
+
+  if (destiny.distTo(target) >= 200) {
+    RRTSTAR* rrt = new RRTSTAR;
+    rrt->setEndPos(destiny);
+    rrt->setInitPos(robot->position());
+    rrt->nodes.clear();
+    rrt->initialize();
+
+    for (Robot r : frame->allies()) {
+
+      if (r.id() == robot->id())
+        continue;
+
+      Point topLeft = Point(r.position().x() + BOT_RADIUS, r.position().y() + BOT_RADIUS);
+      Point bottomRight = Point(r.position().x() - BOT_RADIUS, r.position().y() - BOT_RADIUS);
+
+      rrt->obstacles->addObstacle(topLeft, bottomRight);
+    }
+
+    for (Robot r : frame->enemies()) {
+
+      Point topLeft = Point(r.position().x() + BOT_RADIUS, r.position().y() + BOT_RADIUS);
+      Point bottomRight = Point(r.position().x() - BOT_RADIUS, r.position().y() - BOT_RADIUS);
+
+      rrt->obstacles->addObstacle(topLeft, bottomRight);
+    }
+
+    rrt->setMaxIterations(2500);
+    rrt->setStepSize(120);
+    pathNodes = rrt->runRRTSTAR();
+
+    currentNode = (int) pathNodes.size() - 1;
+    nextPoint = pathNodes.at(currentNode);
+    target = pathNodes.at(0);
+    // target = destiny;
+    delete rrt;
+  } else if (currentNode > 0 && robot->distTo(nextPoint) <= 100) {
+
+    currentNode--;
+    nextPoint = pathNodes.at(currentNode);
+  }
+
+  return nextPoint;
 }
 
 void CustomPlayer::exec() {
@@ -103,7 +153,7 @@ void CustomPlayer::exec() {
         cKickGoal.set_kickSpeed(6);
       }
 
-      emit sendCommand(sslNavigation.run(robot.value(), cKickGoal));
+      emit sendCommand(sslNavigation.run(*robot, cKickGoal));
       break;
     }
 
@@ -130,21 +180,34 @@ void CustomPlayer::exec() {
         cPass.set_kickSpeed(kicksp);
         // std::cout << robot->distTo(closestRobot.position()) << std::endl;
       }
-      emit sendCommand(sslNavigation.run(robot.value(), cPass));
+      emit sendCommand(sslNavigation.run(*robot, cPass));
       break;
     }
 
     case 2: {
       // vai em direcao ao gol
+      // Point destiny = field->allyPenaltyAreaCenter();
+      Point destiny = field->allyGoalOutsideCenter();
+      nextPoint = nextPointToGo(destiny);
 
-      SSLMotion::GoToPoint goToGoal(field->allyGoalInsideCenter(),
-                                    (field->allyGoalInsideCenter() - robot->position()).angle(),
-                                    true);
-      goToGoal.set_maxVelocity(0.5);
+      // Point nextPoint = destiny;
+
+      SSLMotion::GoToPoint goToGoal(nextPoint, (nextPoint - robot->position()).angle(), true);
+      // goToGoal.set_maxVelocity(0.5);
       SSLRobotCommand cGoToGoal(goToGoal);
       cGoToGoal.set_dribbler(true);
-      cGoToGoal.set_dribblerVelocity(5);
-      emit sendCommand(sslNavigation.run(robot.value(), cGoToGoal));
+      // cGoToGoal.set_dribblerVelocity(5);
+      emit sendCommand(sslNavigation.run(*robot, cGoToGoal));
+
+      // SSLMotion::GoToPoint goToGoal(field->allyGoalInsideCenter(),
+      //                               (field->allyGoalInsideCenter() - robot->position()).angle(),
+      //                               true);
+      // goToGoal.set_maxVelocity(0.5);
+      // SSLRobotCommand cGoToGoal(goToGoal);
+      // cGoToGoal.set_dribbler(true);
+      // cGoToGoal.set_dribblerVelocity(5);
+      // emit sendCommand(sslNavigation.run(*robot, cGoToGoal));
+
       break;
     }
 
@@ -154,7 +217,7 @@ void CustomPlayer::exec() {
                                     (frame->ball().position() - robot->position()).angle(),
                                     true);
       SSLRobotCommand cGoToBall(goToBall);
-      emit sendCommand(sslNavigation.run(robot.value(), cGoToBall));
+      emit sendCommand(sslNavigation.run(*robot, cGoToBall));
       break;
     }
 
@@ -166,7 +229,7 @@ void CustomPlayer::exec() {
           (isStriker && robot->position().isOnTheLeftOf(frame->ball().position())))
         goToBall.set_maxVelocity(0.5);
       SSLRobotCommand cGoToBall(goToBall);
-      emit sendCommand(sslNavigation.run(robot.value(), cGoToBall));
+      emit sendCommand(sslNavigation.run(*robot, cGoToBall));
       break;
     }
 
@@ -174,7 +237,7 @@ void CustomPlayer::exec() {
       // olha para a bola
       SSLMotion::RotateOnSelf lookToBall((frame->ball().position() - robot->position()).angle());
       SSLRobotCommand cLookToBall(lookToBall);
-      emit sendCommand(sslNavigation.run(robot.value(), cLookToBall));
+      emit sendCommand(sslNavigation.run(*robot, cLookToBall));
       break;
     }
 
@@ -183,7 +246,7 @@ void CustomPlayer::exec() {
       // Point pontoEixoX(frame->ball().position().x(), robot->position().y());
       // SSLMotion::GoToPoint goToBall(pontoEixoX, (pontoEixoX - robot->position()).angle(), true);
       // SSLRobotCommand cGoToBall(goToBall);
-      // emit sendCommand(sslNavigation.run(robot.value(), cGoToBall));
+      // emit sendCommand(sslNavigation.run(*robot, cGoToBall));
       break;
     }
 
@@ -193,7 +256,7 @@ void CustomPlayer::exec() {
           field->enemyGoalOutsideCenter(),
           (field->enemyGoalOutsideCenter() - robot->position()).angle());
       SSLRobotCommand cGoalkeeperToGoal(goalkeeperToGoal);
-      emit sendCommand(sslNavigation.run(robot.value(), cGoalkeeperToGoal));
+      emit sendCommand(sslNavigation.run(*robot, cGoalkeeperToGoal));
       break;
     }
 
@@ -201,7 +264,7 @@ void CustomPlayer::exec() {
 
       SSLMotion::GoToPoint goMid(field->center(), (field->center() - robot->position()).angle());
       SSLRobotCommand cGoMid(goMid);
-      emit sendCommand(sslNavigation.run(robot.value(), cGoMid));
+      emit sendCommand(sslNavigation.run(*robot, cGoMid));
     }
 
     default: break;
