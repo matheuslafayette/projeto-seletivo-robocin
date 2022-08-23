@@ -190,11 +190,23 @@ void CustomPlayer::exec() {
       Point destiny = field->allyGoalOutsideCenter();
       nextPoint = nextPointToGo(destiny);
 
+      // Point nextPoint = destiny;
+
       SSLMotion::GoToPoint goToGoal(nextPoint, (nextPoint - robot->position()).angle(), true);
       // goToGoal.set_maxVelocity(0.5);
       SSLRobotCommand cGoToGoal(goToGoal);
       cGoToGoal.set_dribbler(true);
-      emit sendCommand(sslNavigation.run(robot.value(), cGoToGoal));
+      // cGoToGoal.set_dribblerVelocity(5);
+      emit sendCommand(sslNavigation.run(*robot, cGoToGoal));
+
+      // SSLMotion::GoToPoint goToGoal(field->allyGoalInsideCenter(),
+      //                               (field->allyGoalInsideCenter() - robot->position()).angle(),
+      //                               true);
+      // goToGoal.set_maxVelocity(0.5);
+      // SSLRobotCommand cGoToGoal(goToGoal);
+      // cGoToGoal.set_dribbler(true);
+      // cGoToGoal.set_dribblerVelocity(5);
+      // emit sendCommand(sslNavigation.run(*robot, cGoToGoal));
 
       break;
     }
@@ -205,7 +217,7 @@ void CustomPlayer::exec() {
                                     (frame->ball().position() - robot->position()).angle(),
                                     true);
       SSLRobotCommand cGoToBall(goToBall);
-      emit sendCommand(sslNavigation.run(robot.value(), cGoToBall));
+      emit sendCommand(sslNavigation.run(*robot, cGoToBall));
       break;
     }
 
@@ -217,7 +229,7 @@ void CustomPlayer::exec() {
           (isStriker && robot->position().isOnTheLeftOf(frame->ball().position())))
         goToBall.set_maxVelocity(0.5);
       SSLRobotCommand cGoToBall(goToBall);
-      emit sendCommand(sslNavigation.run(robot.value(), cGoToBall));
+      emit sendCommand(sslNavigation.run(*robot, cGoToBall));
       break;
     }
 
@@ -225,7 +237,7 @@ void CustomPlayer::exec() {
       // olha para a bola
       SSLMotion::RotateOnSelf lookToBall((frame->ball().position() - robot->position()).angle());
       SSLRobotCommand cLookToBall(lookToBall);
-      emit sendCommand(sslNavigation.run(robot.value(), cLookToBall));
+      emit sendCommand(sslNavigation.run(*robot, cLookToBall));
       break;
     }
 
@@ -234,7 +246,7 @@ void CustomPlayer::exec() {
       // Point pontoEixoX(frame->ball().position().x(), robot->position().y());
       // SSLMotion::GoToPoint goToBall(pontoEixoX, (pontoEixoX - robot->position()).angle(), true);
       // SSLRobotCommand cGoToBall(goToBall);
-      // emit sendCommand(sslNavigation.run(robot.value(), cGoToBall));
+      // emit sendCommand(sslNavigation.run(*robot, cGoToBall));
       break;
     }
 
@@ -244,7 +256,7 @@ void CustomPlayer::exec() {
           field->enemyGoalOutsideCenter(),
           (field->enemyGoalOutsideCenter() - robot->position()).angle());
       SSLRobotCommand cGoalkeeperToGoal(goalkeeperToGoal);
-      emit sendCommand(sslNavigation.run(robot.value(), cGoalkeeperToGoal));
+      emit sendCommand(sslNavigation.run(*robot, cGoalkeeperToGoal));
       break;
     }
 
@@ -252,7 +264,7 @@ void CustomPlayer::exec() {
 
       SSLMotion::GoToPoint goMid(field->center(), (field->center() - robot->position()).angle());
       SSLRobotCommand cGoMid(goMid);
-      emit sendCommand(sslNavigation.run(robot.value(), cGoMid));
+      emit sendCommand(sslNavigation.run(*robot, cGoMid));
     }
 
     default: break;
