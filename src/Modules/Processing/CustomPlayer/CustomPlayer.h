@@ -4,6 +4,7 @@
 #include "Modules/Modules.h"
 #include "Modules/Processing/ProcessingUtils/ProcessingUtils.h"
 #include <vector>
+#include "Modules/Processing/PathPlanning/RobotPath.h"
 
 class CustomPlayer : public Processing {
  public:
@@ -32,12 +33,8 @@ class CustomPlayer : public Processing {
   std::optional<Field> field;
   std::optional<Frame> frame;
   std::optional<Robot> robot;
-  Point target = Point(3000, -3000);
-  Point nextPoint;
-  std::vector<Point> pathNodes;
 
-  std::vector<Point> destiny = std::vector<Point>(6, Point(3000, -3000));
-  int currentNode;
+  RobotPath* robotpath = new RobotPath[6];
 
   SSLNavigation sslNavigation;
   VSSNavigation vssNavigation;
