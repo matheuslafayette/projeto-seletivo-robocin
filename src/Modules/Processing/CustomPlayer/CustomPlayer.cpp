@@ -106,20 +106,18 @@ void CustomPlayer::exec() {
   // goleiro
   const int idGoalkeeper = 5;
   bool isGoalkeeper = robot->id() == idGoalkeeper;
-  bool goalkeeperInGoal = field->enemyPenaltyAreaContains(robot->position());
 
-  int state = 5;
   Robot closestToBall = *frame->allies().removedById(5).closestTo(frame->ball().position());
   Robot closestAlly = *frame->allies().removedById(robot->id()).closestTo(robot->position());
-  double distToClosestAlly = robot->distTo(closestAlly.position());
-  double distXToBall = robot->position().x() - frame->ball().position().x();
   bool isClosestToBall = robot->id() == closestToBall.id();
   bool haveBall = closestToBall.distTo(frame->ball().position()) <= 120;
-  // bool closeToGoal = closestToBall.position().isOnTheLeftOf(field->allyPenaltyAreaCenter());
   bool closeToGoal = closestToBall.distTo(field->allyGoalInsideCenter()) <= 3000;
   bool isStriker = std::find(striker.begin(), striker.end(), robot->id()) != striker.end();
   bool isDefender = std::find(defense.begin(), defense.end(), robot->id()) != defense.end();
+  bool ballInGoalkeeperArea = field->allyPenaltyAreaContains(frame->ball().position()) ||
+                              field->enemyPenaltyAreaContains(frame->ball().position());
 
+  int state = 5;
   if (!isGoalkeeper) {
 
     if (isClosestToBall) {
@@ -127,18 +125,19 @@ void CustomPlayer::exec() {
         if (closeToGoal)
           state = 0; // chuta para o gol
         else if (isStriker)
-          state = 2; // vai para o gol == 2
+          state = 2; // vai para o gol
         else
-          state = 1; // toca aliado
+          state = 1; // toca para um atacante
       } else
         state = 3; // vai para a bola
     } else
-      state = 4;
+      state = 4; // andando pelo campo
   } else
-    state = 5;
+    state = 5; // goleiro
 
-  if (!field->contains(robot->position()) || field->allyPenaltyAreaContains(robot->position()))
-    state = 8; // fora do campo entao volta pro campo
+  if (!field->contains(robot->position()) || field->allyPenaltyAreaContains(robot->position()) ||
+      (!isGoalkeeper && field->enemyPenaltyAreaContains(robot->position())))
+    state = 8; // fora do campo ou na area do goleiro entao vai pro meio
 
   switch (state) {
 
@@ -210,6 +209,8 @@ void CustomPlayer::exec() {
       nextP = frame->ball().position();
 
       SSLMotion::GoToPoint goToBall(nextP, (nextP - robot->position()).angle(), true);
+      if (ballInGoalkeeperArea)
+        goToBall.set_maxVelocity(0.3);
       SSLRobotCommand cGoToBall(goToBall);
       emit sendCommand(sslNavigation.run(robot.value(), cGoToBall));
       break;
@@ -225,6 +226,8 @@ void CustomPlayer::exec() {
       if ((isDefender && robot->position().isOnTheRightOf(frame->ball().position())) ||
           (isStriker && robot->position().isOnTheLeftOf(frame->ball().position())))
         goToBall.set_maxVelocity(0.5);
+      if (ballInGoalkeeperArea)
+        goToBall.set_maxVelocity(0.3);
       SSLRobotCommand cGoToBall(goToBall);
       emit sendCommand(sslNavigation.run(robot.value(), cGoToBall));
       break;
@@ -233,15 +236,16 @@ void CustomPlayer::exec() {
     case 5: {
       // goleiro
       int goalkeeperState = 0;
+      bool goalkeeperInGoal = field->enemyPenaltyAreaContains(robot->position());
 
       if (!goalkeeperInGoal)
-        state = 3;
+        goalkeeperState = 3;
       else if (!field->enemyPenaltyAreaContains(frame->ball().position()))
-        state = 0;
+        goalkeeperState = 0;
       else if (robot->distTo(frame->ball().position()) <= 120)
-        state = 1;
+        goalkeeperState = 1;
       else
-        state = 2;
+        goalkeeperState = 2;
 
       switch (goalkeeperState) {
 
@@ -291,7 +295,7 @@ void CustomPlayer::exec() {
         case 2: {
 
           SSLMotion::GoToPoint goBall(frame->ball().position(),
-                                      (robot->position() - frame->ball().position()).angle(),
+                                      (frame->ball().position() - robot->position()).angle(),
                                       true);
           SSLRobotCommand cGoBall(goBall);
           emit sendCommand(sslNavigation.run(robot.value(), cGoBall));
@@ -299,7 +303,6 @@ void CustomPlayer::exec() {
         }
 
         case 3: {
-
           // goleiro ir pro gol
           SSLMotion::GoToPoint goalkeeperToGoal(
               field->enemyGoalOutsideCenter(),
