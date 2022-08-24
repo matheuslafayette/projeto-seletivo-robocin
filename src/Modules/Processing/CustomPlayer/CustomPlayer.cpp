@@ -116,6 +116,12 @@ void CustomPlayer::exec() {
   bool isDefender = std::find(defense.begin(), defense.end(), robot->id()) != defense.end();
   bool ballInGoalkeeperArea = field->allyPenaltyAreaContains(frame->ball().position()) ||
                               field->enemyPenaltyAreaContains(frame->ball().position());
+  bool ballWithOtherTeam = false;
+  for (Robot r : frame->enemies())
+    if (r.distTo(frame->ball().position()) <= 120) {
+      ballWithOtherTeam = true;
+      break;
+    }
 
   int state = 5;
   if (!isGoalkeeper) {
@@ -128,8 +134,10 @@ void CustomPlayer::exec() {
           state = 2; // vai para o gol
         else
           state = 1; // toca para um atacante
-      } else
+      } else if (!ballWithOtherTeam)
         state = 3; // vai para a bola
+      else
+        state = 6;
     } else
       state = 4; // andando pelo campo
   } else
@@ -321,11 +329,53 @@ void CustomPlayer::exec() {
     }
 
     case 6: {
-      // caso a bola esteja atras
-      // Point pontoEixoX(frame->ball().position().x(), robot->position().y());
-      // SSLMotion::GoToPoint goToBall(pontoEixoX, (pontoEixoX - robot->position()).angle(), true);
-      // SSLRobotCommand cGoToBall(goToBall);
-      // emit sendCommand(sslNavigation.run(*robot, cGoToBall));
+      int stateStealBall = 0;
+      int distBall = robot->distTo(frame->ball().position());
+      int distXtoBall = robot->position().x() - frame->ball().position().x();
+      if (distBall <= 600 && distXtoBall > 0 && distXtoBall <= 500) {
+        if (abs((frame->ball().position() - robot->position()).angle()) <= 0.17)
+          stateStealBall = 1;
+        else
+          stateStealBall = 2;
+      } else
+        stateStealBall = 0;
+
+      switch (stateStealBall) {
+
+        case 0: {
+
+          Point destiny = frame->ball().position();
+          destiny.setX(destiny.x() + 300);
+          Point nextP = nextPointToGo(destiny);
+
+          SSLMotion::GoToPoint goToGoal(nextP, (nextP - robot->position()).angle(), true);
+          SSLRobotCommand cGoToGoal(goToGoal);
+          emit sendCommand(sslNavigation.run(robot.value(), cGoToGoal));
+          break;
+        }
+
+        case 1: {
+
+          SSLMotion::RotateOnSelf spin((robot->position() - frame->ball().position()).angle());
+          SSLRobotCommand cSpin(spin);
+          emit sendCommand(sslNavigation.run(robot.value(), cSpin));
+          break;
+        }
+
+        case 2: {
+
+          Point nextP = frame->ball().position();
+          SSLMotion::GoToPoint goToGoal(nextP, (nextP - robot->position()).angle(), true);
+          goToGoal.set_maxVelocity(0.9);
+          SSLRobotCommand cGoToGoal(goToGoal);
+          cGoToGoal.set_dribbler(true);
+          emit sendCommand(sslNavigation.run(robot.value(), cGoToGoal));
+          break;
+        }
+
+        default: break;
+      }
+
       break;
     }
 
