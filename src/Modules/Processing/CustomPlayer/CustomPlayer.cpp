@@ -43,7 +43,7 @@ Point CustomPlayer::nextPointToGo(Point destiny) {
   vector<Point> pathnodes;
   int id = robot->id();
 
-  if (destiny.distTo(robotpath[id].target) >= 200) {
+  if (destiny.distTo(robotpath[id].target) >= 150) {
     RRTSTAR* rrt = new RRTSTAR;
     rrt->setEndPos(destiny);
     rrt->setInitPos(robot->position());
@@ -110,21 +110,23 @@ void CustomPlayer::exec() {
   Robot closestToBall = *frame->allies().removedById(5).closestTo(frame->ball().position());
   Robot closestAlly = *frame->allies().removedById(robot->id()).closestTo(robot->position());
   bool isClosestToBall = robot->id() == closestToBall.id();
-  bool haveBall = closestToBall.distTo(frame->ball().position()) <= 120;
+  bool haveBall = closestToBall.distTo(frame->ball().position()) <= 110;
   bool closeToGoal = closestToBall.distTo(field->allyGoalInsideCenter()) <= 3000;
   bool isStriker = std::find(striker.begin(), striker.end(), robot->id()) != striker.end();
   bool isDefender = std::find(defense.begin(), defense.end(), robot->id()) != defense.end();
   bool ballInGoalkeeperArea = field->allyPenaltyAreaContains(frame->ball().position()) ||
                               field->enemyPenaltyAreaContains(frame->ball().position());
   bool ballWithOtherTeam = false;
-  Robot enemyClosestToBall = *frame->enemies().findById(2);
+
+  Robot enemyClosestToBall = robot.value();
   // if (enemyClosestToBall.distTo(frame->ball().position()) <= 120)
   //   ballWithOtherTeam = true;
 
   for (Robot r : frame->enemies())
-    if (r.distTo(frame->ball().position()) <= 120) {
+    if (r.distTo(frame->ball().position()) <= 120.0) {
       enemyClosestToBall = r;
       ballWithOtherTeam = true;
+      break;
     }
 
   int state = 4;
@@ -335,26 +337,32 @@ void CustomPlayer::exec() {
 
     case 6: {
 
-      cout << "in" << endl;
       int stateStealBall = 0;
 
-      int distXtoBall = enemyClosestToBall.position().x() - frame->ball().position().x();
-      int distYtoBall = enemyClosestToBall.position().y() - frame->ball().position().y();
+      double distXtoBall = enemyClosestToBall.position().x() - frame->ball().position().x();
+      double distYtoBall = enemyClosestToBall.position().y() - frame->ball().position().y();
 
-      int pointXtoGo = frame->ball().position().x() - 8 * distXtoBall;
-      int pointYtoGo = frame->ball().position().y() - 8 * distYtoBall;
+      bool enemyInRight = distXtoBall > 0;
+      bool enemyInUp = distYtoBall > 0;
+      bool allyInRight = (robot->position().x() - frame->ball().position().x()) > 0;
+      bool allyInUp = (robot->position().y() - frame->ball().position().y()) > 0;
+
+      bool canGoBall = ((enemyInUp && !allyInUp) || (!enemyInUp && allyInUp)) &&
+                       ((enemyInRight && !allyInRight) || (!enemyInRight && allyInRight));
+
+      double pointXtoGo = frame->ball().position().x() - (int) enemyInRight * 300;
+      double pointYtoGo = frame->ball().position().y() - (int) enemyInUp * 300;
       Point pointToGo(pointXtoGo, pointYtoGo);
 
-      int distBall = robot->distTo(frame->ball().position());
-      int distPoint = robot->distTo(pointToGo);
-
-      if (distPoint <= 100) {
-        if (abs((frame->ball().position() - robot->position()).angle()) <= 0.17)
+      if (canGoBall || (robot->distTo(frame->ball().position()) <= 180)) {
+        if ((frame->ball().position() - robot->position()).angle() <= 0.17)
           stateStealBall = 2;
         else
           stateStealBall = 1;
       } else
         stateStealBall = 0;
+
+      cout << stateStealBall << endl;
 
       switch (stateStealBall) {
 
