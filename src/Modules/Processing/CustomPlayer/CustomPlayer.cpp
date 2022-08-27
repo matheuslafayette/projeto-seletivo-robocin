@@ -43,7 +43,7 @@ Point CustomPlayer::nextPointToGo(Point destiny) {
   vector<Point> pathnodes;
   int id = robot->id();
 
-  if (destiny.distTo(robotpath[id].target) >= 200) {
+  if (destiny.distTo(robotpath[id].target) >= 150) {
     RRTSTAR* rrt = new RRTSTAR;
     rrt->setEndPos(destiny);
     rrt->setInitPos(robot->position());
@@ -88,7 +88,7 @@ Point CustomPlayer::nextPointToGo(Point destiny) {
 }
 
 void CustomPlayer::exec() {
-  if (!field || !frame || !robot || !frame->has_ball()) {
+  if (!field || !frame || !robot || !frame->has_ball() || !frame.has_value()) {
     return;
   }
 
@@ -110,14 +110,26 @@ void CustomPlayer::exec() {
   Robot closestToBall = *frame->allies().removedById(5).closestTo(frame->ball().position());
   Robot closestAlly = *frame->allies().removedById(robot->id()).closestTo(robot->position());
   bool isClosestToBall = robot->id() == closestToBall.id();
-  bool haveBall = closestToBall.distTo(frame->ball().position()) <= 120;
+  bool haveBall = closestToBall.distTo(frame->ball().position()) <= 110;
   bool closeToGoal = closestToBall.distTo(field->allyGoalInsideCenter()) <= 3000;
   bool isStriker = std::find(striker.begin(), striker.end(), robot->id()) != striker.end();
   bool isDefender = std::find(defense.begin(), defense.end(), robot->id()) != defense.end();
   bool ballInGoalkeeperArea = field->allyPenaltyAreaContains(frame->ball().position()) ||
                               field->enemyPenaltyAreaContains(frame->ball().position());
+  bool ballWithOtherTeam = false;
 
-  int state = 5;
+  Robot enemyClosestToBall = robot.value();
+  // if (enemyClosestToBall.distTo(frame->ball().position()) <= 120)
+  //   ballWithOtherTeam = true;
+
+  for (Robot r : frame->enemies())
+    if (r.distTo(frame->ball().position()) <= 120.0) {
+      enemyClosestToBall = r;
+      ballWithOtherTeam = true;
+      break;
+    }
+
+  int state = 4;
   if (!isGoalkeeper) {
 
     if (isClosestToBall) {
@@ -128,10 +140,15 @@ void CustomPlayer::exec() {
           state = 2; // vai para o gol
         else
           state = 1; // toca para um atacante
-      } else
-        state = 3; // vai para a bola
+      } else if (ballWithOtherTeam) {
+        state = 6; // rouba bola
+      } else {
+        state = 3;
+      }
     } else
-      state = 4; // andando pelo campo
+      state = 4; // vai para a bola
+    // else
+    // state = 4; // andando pelo campo
   } else
     state = 5; // goleiro
 
@@ -314,18 +331,73 @@ void CustomPlayer::exec() {
 
         default: break;
       }
-      // SSLMotion::RotateOnSelf lookToBall((frame->ball().position() - robot->position()).angle());
-      // SSLRobotCommand cLookToBall(lookToBall);
-      // emit sendCommand(sslNavigation.run(*robot, cLookToBall));
+
       break;
     }
 
     case 6: {
-      // caso a bola esteja atras
-      // Point pontoEixoX(frame->ball().position().x(), robot->position().y());
-      // SSLMotion::GoToPoint goToBall(pontoEixoX, (pontoEixoX - robot->position()).angle(), true);
-      // SSLRobotCommand cGoToBall(goToBall);
-      // emit sendCommand(sslNavigation.run(*robot, cGoToBall));
+
+      int stateStealBall = 0;
+
+      double distXtoBall = enemyClosestToBall.position().x() - frame->ball().position().x();
+      double distYtoBall = enemyClosestToBall.position().y() - frame->ball().position().y();
+
+      bool enemyInRight = distXtoBall > 0;
+      bool enemyInUp = distYtoBall > 0;
+      bool allyInRight = (robot->position().x() - frame->ball().position().x()) > 0;
+      bool allyInUp = (robot->position().y() - frame->ball().position().y()) > 0;
+
+      bool canGoBall = ((enemyInUp && !allyInUp) || (!enemyInUp && allyInUp)) &&
+                       ((enemyInRight && !allyInRight) || (!enemyInRight && allyInRight));
+
+      double pointXtoGo = frame->ball().position().x() - (int) enemyInRight * 300;
+      double pointYtoGo = frame->ball().position().y() - (int) enemyInUp * 300;
+      Point pointToGo(pointXtoGo, pointYtoGo);
+
+      if (canGoBall || (robot->distTo(frame->ball().position()) <= 180)) {
+        if ((frame->ball().position() - robot->position()).angle() <= 0.17)
+          stateStealBall = 2;
+        else
+          stateStealBall = 1;
+      } else
+        stateStealBall = 0;
+
+      cout << stateStealBall << endl;
+
+      switch (stateStealBall) {
+
+        case 0: {
+
+          Point nextP = nextPointToGo(pointToGo);
+
+          SSLMotion::GoToPoint goToGoal(nextP, (nextP - robot->position()).angle(), true);
+          SSLRobotCommand cGoToGoal(goToGoal);
+          emit sendCommand(sslNavigation.run(robot.value(), cGoToGoal));
+          break;
+        }
+
+        case 1: {
+
+          SSLMotion::RotateOnSelf spin((robot->position() - frame->ball().position()).angle());
+          SSLRobotCommand cSpin(spin);
+          emit sendCommand(sslNavigation.run(robot.value(), cSpin));
+          break;
+        }
+
+        case 2: {
+
+          Point nextP = frame->ball().position();
+          SSLMotion::GoToPoint goToGoal(nextP, (nextP - robot->position()).angle(), true);
+          goToGoal.set_maxVelocity(0.9);
+          SSLRobotCommand cGoToGoal(goToGoal);
+          cGoToGoal.set_dribbler(true);
+          emit sendCommand(sslNavigation.run(robot.value(), cGoToGoal));
+          break;
+        }
+
+        default: break;
+      }
+
       break;
     }
 
