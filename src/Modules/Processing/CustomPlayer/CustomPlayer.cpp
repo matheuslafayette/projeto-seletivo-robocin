@@ -43,7 +43,7 @@ Point CustomPlayer::nextPointToGo(Point destiny) {
   vector<Point> pathnodes;
   int id = robot->id();
 
-  if (destiny.distTo(robotpath[id].target) >= 150) {
+  if (destiny.distTo(robotpath[id].target) >= 200) {
     RRTSTAR* rrt = new RRTSTAR;
     rrt->setEndPos(destiny);
     rrt->setInitPos(robot->position());
@@ -63,8 +63,8 @@ Point CustomPlayer::nextPointToGo(Point destiny) {
 
     for (Robot r : frame->enemies()) {
 
-      Point topLeft = Point(r.position().x() + BOT_RADIUS, r.position().y() + BOT_RADIUS);
-      Point bottomRight = Point(r.position().x() - BOT_RADIUS, r.position().y() - BOT_RADIUS);
+      Point topLeft = Point(r.position().x() - BOT_RADIUS, r.position().y() - BOT_RADIUS);
+      Point bottomRight = Point(r.position().x() + BOT_RADIUS, r.position().y() + BOT_RADIUS);
 
       rrt->obstacles->addObstacle(topLeft, bottomRight);
     }
@@ -76,9 +76,8 @@ Point CustomPlayer::nextPointToGo(Point destiny) {
     robotpath[id].currentNode = (int) robotpath[id].pathNodes.size() - 1;
     robotpath[id].nextPoint = robotpath[id].pathNodes.at(robotpath[id].currentNode);
     robotpath[id].target = robotpath[id].pathNodes.at(0);
-    // target = destiny;
     delete rrt;
-  } else if (robotpath[id].currentNode > 0 && robot->distTo(robotpath[id].nextPoint) <= 100) {
+  } else if (robotpath[id].currentNode > 0 && robot->distTo(robotpath[id].nextPoint) <= 120) {
 
     robotpath[id].currentNode--;
     robotpath[id].nextPoint = robotpath[id].pathNodes.at(robotpath[id].currentNode);
@@ -119,8 +118,6 @@ void CustomPlayer::exec() {
   bool ballWithOtherTeam = false;
 
   Robot enemyClosestToBall = robot.value();
-  // if (enemyClosestToBall.distTo(frame->ball().position()) <= 120)
-  //   ballWithOtherTeam = true;
 
   for (Robot r : frame->enemies())
     if (r.distTo(frame->ball().position()) <= 120.0) {
@@ -140,15 +137,12 @@ void CustomPlayer::exec() {
           state = 2; // vai para o gol
         else
           state = 1; // toca para um atacante
-      } else if (ballWithOtherTeam) {
+      } else if (ballWithOtherTeam)
         state = 6; // rouba bola
-      } else {
-        state = 3;
-      }
+      else
+        state = 3; // vai para a bola
     } else
-      state = 4; // vai para a bola
-    // else
-    // state = 4; // andando pelo campo
+      state = 4; // anda pelo campo
   } else
     state = 5; // goleiro
 
@@ -350,15 +344,19 @@ void CustomPlayer::exec() {
       bool canGoBall = ((enemyInUp && !allyInUp) || (!enemyInUp && allyInUp)) &&
                        ((enemyInRight && !allyInRight) || (!enemyInRight && allyInRight));
 
-      double pointXtoGo = frame->ball().position().x() - (int) enemyInRight * 300;
-      double pointYtoGo = frame->ball().position().y() - (int) enemyInUp * 300;
+      int offsetX = 500, offsetY = 500;
+
+      if (enemyInRight)
+        offsetX *= -1;
+      if (enemyInUp)
+        offsetY *= -1;
+
+      double pointXtoGo = frame->ball().position().x() + offsetX;
+      double pointYtoGo = frame->ball().position().y() + offsetY;
       Point pointToGo(pointXtoGo, pointYtoGo);
 
-      if (canGoBall || (robot->distTo(frame->ball().position()) <= 180)) {
-        if ((frame->ball().position() - robot->position()).angle() <= 0.17)
-          stateStealBall = 2;
-        else
-          stateStealBall = 1;
+      if (canGoBall) {
+        stateStealBall = 1;
       } else
         stateStealBall = 0;
 
@@ -378,17 +376,10 @@ void CustomPlayer::exec() {
 
         case 1: {
 
-          SSLMotion::RotateOnSelf spin((robot->position() - frame->ball().position()).angle());
-          SSLRobotCommand cSpin(spin);
-          emit sendCommand(sslNavigation.run(robot.value(), cSpin));
-          break;
-        }
-
-        case 2: {
-
           Point nextP = frame->ball().position();
           SSLMotion::GoToPoint goToGoal(nextP, (nextP - robot->position()).angle(), true);
-          goToGoal.set_maxVelocity(0.9);
+          if (robot->distTo(frame->ball().position()) <= 200)
+            goToGoal.set_maxVelocity(0.9);
           SSLRobotCommand cGoToGoal(goToGoal);
           cGoToGoal.set_dribbler(true);
           emit sendCommand(sslNavigation.run(robot.value(), cGoToGoal));
