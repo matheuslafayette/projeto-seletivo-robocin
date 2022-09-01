@@ -55,19 +55,11 @@ Point CustomPlayer::nextPointToGo(Point destiny) {
       if (r.id() == robot->id())
         continue;
 
-      Point topLeft = Point(r.position().x() + BOT_RADIUS, r.position().y() + BOT_RADIUS);
-      Point bottomRight = Point(r.position().x() - BOT_RADIUS, r.position().y() - BOT_RADIUS);
-
-      rrt->obstacles->addObstacle(topLeft, bottomRight);
+      rrt->obstacles->addObstacle(r.position(), r.position());
     }
 
-    for (Robot r : frame->enemies()) {
-
-      Point topLeft = Point(r.position().x() - BOT_RADIUS, r.position().y() - BOT_RADIUS);
-      Point bottomRight = Point(r.position().x() + BOT_RADIUS, r.position().y() + BOT_RADIUS);
-
-      rrt->obstacles->addObstacle(topLeft, bottomRight);
-    }
+    for (Robot r : frame->enemies())
+      rrt->obstacles->addObstacle(r.position(), r.position());
 
     rrt->setMaxIterations(2500);
     rrt->setStepSize(120);
@@ -255,7 +247,7 @@ void CustomPlayer::exec() {
         goalkeeperState = 3;
       else if (!field->enemyPenaltyAreaContains(frame->ball().position()))
         goalkeeperState = 0;
-      else if (robot->distTo(frame->ball().position()) <= 120)
+      else if (haveBall)
         goalkeeperState = 1;
       else
         goalkeeperState = 2;
@@ -272,6 +264,7 @@ void CustomPlayer::exec() {
             nextP.setY(-450);
 
           SSLMotion::GoToPoint goToBall(nextP, (nextP - robot->position()).angle(), false);
+          goToBall.set_maxVelocity(1);
           SSLRobotCommand cGoToBall(goToBall);
           emit sendCommand(sslNavigation.run(robot.value(), cGoToBall));
           break;
@@ -308,7 +301,7 @@ void CustomPlayer::exec() {
 
         case 2: {
 
-          // segue a posição Y da bola
+          // vai em direção a bola
           SSLMotion::GoToPoint goBall(frame->ball().position(),
                                       (frame->ball().position() - robot->position()).angle(),
                                       true);
