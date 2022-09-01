@@ -148,7 +148,7 @@ void CustomPlayer::exec() {
 
   if (!field->contains(robot->position()) || field->allyPenaltyAreaContains(robot->position()) ||
       (!isGoalkeeper && field->enemyPenaltyAreaContains(robot->position())))
-    state = 8; // fora do campo ou na area do goleiro entao vai pro meio
+    state = 7; // fora do campo ou na area do goleiro entao vai pro meio
 
   switch (state) {
 
@@ -169,8 +169,7 @@ void CustomPlayer::exec() {
     }
 
     case 1: {
-      // std::cout << "in" << std::endl;
-      // pass to closest ally
+      // passa para o aliado mais perto
       Robot closestRobot = *frame->allies().findById(1);
       double dist = 100000;
       for (int i : striker) {
@@ -190,7 +189,6 @@ void CustomPlayer::exec() {
         cPass.set_front(true);
         double kicksp = 1 + robot->distTo(closestRobot.position()) / 1500;
         cPass.set_kickSpeed(kicksp);
-        // std::cout << robot->distTo(closestRobot.position()) << std::endl;
       }
       emit sendCommand(sslNavigation.run(robot.value(), cPass));
       break;
@@ -228,8 +226,12 @@ void CustomPlayer::exec() {
     }
 
     case 4: {
-      // se tao longe vao em direcao a bola
+      // anda pelo campo
       Point pontoEixoX(frame->ball().position().x(), robot->position().y());
+      // if (pontoEixoX.x() - robot->position().x() > 1000)
+      //   pontoEixoX.setX(robot->position().x() + 1000);
+      // else if (pontoEixoX.x() - robot->position().x() < -1000)
+      //   pontoEixoX.setX(robot->position().x() - 1000);
       // Point nextP = nextPointToGo(pontoEixoX);
       Point nextP = pontoEixoX;
 
@@ -277,6 +279,7 @@ void CustomPlayer::exec() {
 
         case 1: {
 
+          // caso a bola esteja dentro da area, toca para aliado mais perto
           Robot closest = *frame->allies().findById(0);
           int dist = 10000;
           for (Robot i : frame->allies().removedById(5)) {
@@ -305,6 +308,7 @@ void CustomPlayer::exec() {
 
         case 2: {
 
+          // segue a posição Y da bola
           SSLMotion::GoToPoint goBall(frame->ball().position(),
                                       (frame->ball().position() - robot->position()).angle(),
                                       true);
@@ -393,14 +397,10 @@ void CustomPlayer::exec() {
     }
 
     case 7: {
-      break;
-    }
-
-    case 8: {
-
       SSLMotion::GoToPoint goMid(field->center(), (field->center() - robot->position()).angle());
       SSLRobotCommand cGoMid(goMid);
       emit sendCommand(sslNavigation.run(robot.value(), cGoMid));
+      break;
     }
 
     default: break;
