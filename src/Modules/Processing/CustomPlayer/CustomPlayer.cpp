@@ -86,13 +86,9 @@ void CustomPlayer::exec() {
   // TODO: here...
   // emit sendCommand(..
 
-  std::vector<int> striker;
-  striker.push_back(1);
-  striker.push_back(3);
-  std::vector<int> defense;
-  defense.push_back(0);
-  defense.push_back(2);
-  defense.push_back(4);
+  std::vector<int> striker = {1, 3};
+  std::vector<int> defense = {0, 2, 4};
+  std::vector<int> allPlayers = {1, 3, 0, 2, 4};
 
   // goleiro
   const int idGoalkeeper = 5;
@@ -100,6 +96,8 @@ void CustomPlayer::exec() {
 
   Robot closestToBall = *frame->allies().removedById(5).closestTo(frame->ball().position());
   Robot closestAlly = *frame->allies().removedById(robot->id()).closestTo(robot->position());
+  Robot robotToPass = *frame->allies().findById(1);
+
   bool isClosestToBall = robot->id() == closestToBall.id();
   bool haveBall = closestToBall.distTo(frame->ball().position()) <= 110;
   bool closeToGoal = closestToBall.distTo(field->allyGoalInsideCenter()) <= 3000;
@@ -142,6 +140,37 @@ void CustomPlayer::exec() {
       (!isGoalkeeper && field->enemyPenaltyAreaContains(robot->position())))
     state = 7; // fora do campo ou na area do goleiro entao vai pro meio
 
+  if (state == 1) {
+
+    bool canPass = false;
+
+    for (int i : allPlayers) {
+
+      if (robot->id() == i)
+        continue;
+
+      Robot r = *frame->allies().findById(i);
+
+      int distLine = 100000;
+      for (Robot enemyRobot : frame->enemies()) {
+
+        int aux =
+            Geometry2D::distancePointLine(robot->position(), r.position(), enemyRobot.position());
+        if (aux < distLine)
+          distLine = aux;
+      }
+      if (distLine > 100) {
+
+        robotToPass = *frame->allies().findById(i);
+        canPass = true;
+        break;
+      }
+    }
+
+    if (!canPass)
+      state = 2;
+  }
+
   switch (state) {
 
     case 0: {
@@ -149,8 +178,8 @@ void CustomPlayer::exec() {
       SSLMotion::RotateOnSelf kickGoal((field->allyGoalInsideCenter() - robot->position()).angle());
       SSLRobotCommand cKickGoal(kickGoal);
       cKickGoal.set_dribbler(true);
-      const double tenDegrees = 0.17;
-      if (abs(robot->angleTo(field->allyGoalInsideCenter())) <= tenDegrees) {
+      const double fiveDegrees = 0.087;
+      if (abs(robot->angleTo(field->allyGoalInsideCenter())) <= fiveDegrees) {
 
         cKickGoal.set_front(true);
         cKickGoal.set_kickSpeed(6);
@@ -161,25 +190,16 @@ void CustomPlayer::exec() {
     }
 
     case 1: {
-      // passa para o aliado mais perto
-      Robot closestRobot = *frame->allies().findById(1);
-      double dist = 100000;
-      for (int i : striker) {
+      // toca a bola
 
-        if (robot->distTo(*frame->allies().findById(i)) < dist) {
-
-          dist = robot->distTo(*frame->allies().findById(i));
-          closestRobot = *frame->allies().findById(i);
-        }
-      }
-      SSLMotion::RotateOnSelf pass((closestRobot.position() - robot->position()).angle());
+      SSLMotion::RotateOnSelf pass((robotToPass.position() - robot->position()).angle());
       SSLRobotCommand cPass(pass);
       cPass.set_dribbler(true);
-      const double tenDegrees = 0.17;
-      if (abs(robot->angleTo(closestRobot.position())) <= tenDegrees) {
+      const double fiveDegrees = 0.087;
+      if (abs(robot->angleTo(robotToPass.position())) <= fiveDegrees) {
 
         cPass.set_front(true);
-        double kicksp = 1 + robot->distTo(closestRobot.position()) / 1500;
+        double kicksp = 1 + robot->distTo(robotToPass.position()) / 1500;
         cPass.set_kickSpeed(kicksp);
       }
       emit sendCommand(sslNavigation.run(robot.value(), cPass));
@@ -247,7 +267,7 @@ void CustomPlayer::exec() {
         goalkeeperState = 3;
       else if (!field->enemyPenaltyAreaContains(frame->ball().position()))
         goalkeeperState = 0;
-      else if (haveBall)
+      else if (robot->distTo(frame->ball().position()) <= 110)
         goalkeeperState = 1;
       else
         goalkeeperState = 2;
@@ -287,13 +307,12 @@ void CustomPlayer::exec() {
           SSLMotion::RotateOnSelf pass((closest.position() - robot->position()).angle());
           SSLRobotCommand cPass(pass);
           cPass.set_dribbler(true);
-          const double tenDegrees = 0.17;
-          if (abs(robot->angleTo(closest.position())) <= tenDegrees) {
+          const double fiveDegrees = 0.087;
+          if (abs(robot->angleTo(closest.position())) <= fiveDegrees) {
 
             cPass.set_front(true);
             double kicksp = 1 + robot->distTo(closest.position()) / 1500;
             cPass.set_kickSpeed(kicksp);
-            // std::cout << robot->distTo(closestRobot.position()) << std::endl;
           }
           emit sendCommand(sslNavigation.run(robot.value(), cPass));
           break;
@@ -356,8 +375,6 @@ void CustomPlayer::exec() {
         stateStealBall = 1;
       } else
         stateStealBall = 0;
-
-      cout << stateStealBall << endl;
 
       switch (stateStealBall) {
 
