@@ -36,6 +36,10 @@ class CustomPlayer : public Processing {
 
   RobotPath* robotpath = new RobotPath[6];
 
+  std::vector<int> striker = {1, 3};
+  std::vector<int> defense = {0, 2, 4};
+  std::vector<int> allPlayers = {1, 3, 0, 2, 4};
+
   SSLNavigation sslNavigation;
   VSSNavigation vssNavigation;
 

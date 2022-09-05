@@ -8,7 +8,7 @@ using namespace std;
 class RobotPath {
  public:
   RobotPath();
-  Point target;
+  Point lastPoint;
   Point nextPoint;
   std::vector<Point> pathNodes;
   int currentNode;

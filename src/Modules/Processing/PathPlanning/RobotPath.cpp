@@ -2,6 +2,6 @@
 
 RobotPath::RobotPath() {
 
-  target = Point(3000, -3000);
+  lastPoint = Point(3000, -3000);
   currentNode = 0;
 }
