@@ -44,11 +44,13 @@ Point CustomPlayer::nextPointToGo(Point destiny) {
   int id = robot->id();
 
   // roda o algoritmo de path-planning enquanto nao achou um caminho até o destino
-  if (destiny.distTo(robotpath[id].lastPoint) > END_DIST_THRESHOLD) {
+  if (destiny.distTo(robotpath[id].getLastPoint()) > END_DIST_THRESHOLD) {
 
     RRTSTAR* rrt = new RRTSTAR;
     rrt->setInitPos(robot->position());
     rrt->setEndPos(destiny);
+    rrt->setMaxIterations(2500);
+    rrt->setStepSize(120);
     rrt->initialize();
 
     // adiciona obstaculos
@@ -64,25 +66,24 @@ Point CustomPlayer::nextPointToGo(Point destiny) {
       rrt->obstacles->addObstacle(r.position(), r.position());
 
     // roda o algoritmo e salva o vetor com os nós até o caminho
-    rrt->setMaxIterations(2500);
-    rrt->setStepSize(120);
-    robotpath[id].pathNodes = rrt->runRRTSTAR();
+    robotpath[id].setPathNodes(rrt->runRRTSTAR());
 
-    robotpath[id].currentNode = robotpath[id].pathNodes.size() - 1;
-    robotpath[id].nextPoint = robotpath[id].pathNodes.at(robotpath[id].currentNode);
-    robotpath[id].lastPoint = robotpath[id].pathNodes.at(0);
+    robotpath[id].setCurrentNode(robotpath[id].getPathNodes().size() - 1);
+    robotpath[id].setNextPoint(robotpath[id].getPathNodes().at(robotpath[id].getCurrentNode()));
+    robotpath[id].setLastPoint(robotpath[id].getPathNodes().at(0));
 
     delete rrt;
 
   }
   // caso ja tenha achado um caminho, usa o vetor com os nós até tal caminho
-  else if (robotpath[id].currentNode > 0 && robot->distTo(robotpath[id].nextPoint) < 120) {
+  else if (robotpath[id].getCurrentNode() > 0 &&
+           robot->distTo(robotpath[id].getNextPoint()) < 120) {
 
-    robotpath[id].currentNode--;
-    robotpath[id].nextPoint = robotpath[id].pathNodes.at(robotpath[id].currentNode);
+    robotpath[id].setCurrentNode(robotpath[id].getCurrentNode() - 1);
+    robotpath[id].setNextPoint(robotpath[id].getPathNodes().at(robotpath[id].getCurrentNode()));
   }
 
-  return robotpath[id].nextPoint;
+  return robotpath[id].getNextPoint();
 }
 
 void CustomPlayer::exec() {
@@ -95,20 +96,24 @@ void CustomPlayer::exec() {
 
   // goleiro
   const int idGoalkeeper = 5;
-  bool isGoalkeeper = robot->id() == idGoalkeeper;
+  const bool isGoalkeeper = robot->id() == idGoalkeeper;
 
   // variaveis e constantes auxiliares para o behavior
-  const Robot closestToBall = *frame->allies().removedById(5).closestTo(frame->ball().position());
+  const Robot closestToBall =
+      *frame->allies().removedById(idGoalkeeper).closestTo(frame->ball().position());
   const Robot closestAlly = *frame->allies().removedById(robot->id()).closestTo(robot->position());
-  Robot robotToPass = *frame->allies().findById(3);
+  Robot robotToPass = *frame->allies()
+                           .removedById(idGoalkeeper)
+                           .removedById(robot->id())
+                           .closestTo(robot->position());
 
   const bool isClosestToBall = robot->id() == closestToBall.id();
-  const bool haveBall = closestToBall.distTo(frame->ball().position()) <= 110;
-  const bool closeToGoal = closestToBall.distTo(field->allyGoalInsideCenter()) <= 3000;
+  const bool haveBall = robot->distTo(frame->ball().position()) <= 110;
+  const bool closeToGoal = robot->distTo(field->allyGoalInsideCenter()) <= 3000;
   const bool isStriker = std::find(striker.begin(), striker.end(), robot->id()) != striker.end();
   const bool isDefender = std::find(defense.begin(), defense.end(), robot->id()) != defense.end();
-  bool ballInGoalkeeperArea = field->allyPenaltyAreaContains(frame->ball().position()) ||
-                              field->enemyPenaltyAreaContains(frame->ball().position());
+  const bool ballInGoalkeeperArea = field->allyPenaltyAreaContains(frame->ball().position()) ||
+                                    field->enemyPenaltyAreaContains(frame->ball().position());
   bool ballWithOtherTeam = false;
 
   Robot enemyClosestToBall = robot.value();
@@ -122,7 +127,7 @@ void CustomPlayer::exec() {
       break;
     }
 
-  int state = 4;
+  int state;
   if (!isGoalkeeper) {
 
     if (isClosestToBall) {
@@ -158,7 +163,7 @@ void CustomPlayer::exec() {
 
       Robot r = *frame->allies().findById(i);
 
-      int distLine = 100000;
+      int distLine = INT_MAX;
       for (Robot enemyRobot : frame->enemies()) {
 
         int aux =
@@ -169,7 +174,7 @@ void CustomPlayer::exec() {
       // caso não haja robôs na linha de passe, pode tocar
       if (distLine > 100) {
 
-        robotToPass = *frame->allies().findById(i);
+        robotToPass = r;
         canPass = true;
         break;
       }
@@ -179,8 +184,9 @@ void CustomPlayer::exec() {
       state = 2;
   }
 
-  if (state != 2 && state != 3 && robotpath[robot->id()].lastPoint == Point(3000, -3000))
-    robotpath[robot->id()].lastPoint = Point(3000, -3000);
+  if (state != 2 && state != 6 && state != 4 &&
+      robotpath[robot->id()].getLastPoint() != Point(3000, -3000))
+    robotpath[robot->id()].setLastPoint(Point(3000, -3000));
 
   switch (state) {
 
